@@ -1,7 +1,12 @@
 # Oracle Free Tier Instance Creation Through Python
 
 [![Created Badge](https://badges.pufler.dev/created/mohankumarpaluru/oracle-freetier-instance-creation)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation) [![Updated Badge](https://badges.pufler.dev/updated/mohankumarpaluru/oracle-freetier-instance-creation)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation) [![Visits Badge](https://badges.pufler.dev/visits/mohankumarpaluru/oracle-freetier-instance-creation)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation) [![HitCount](https://img.shields.io/endpoint?url=https%3A%2F%2Fhits.dwyl.com%2Fmohankumarpaluru%2Foracle-freetier-instance-creation.svg%3Fstyle%3Dflat%26show%3Dunique%3Fcolor=brightgreen)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation) [![GitHub stars](https://img.shields.io/github/stars/mohankumarpaluru/oracle-freetier-instance-creation?color=brightgreen)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/mohankumarpaluru/oracle-freetier-instance-creation?color=brightgreen)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation/issues) [![GitHub forks](https://img.shields.io/github/forks/mohankumarpaluru/oracle-freetier-instance-creation?color=brightgreen)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation/network) [![GitHub license](https://img.shields.io/github/license/mohankumarpaluru/oracle-freetier-instance-creation?color=brightgreen)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation/blob/main/LICENSE) 
+[![GitHub issues](https://img.shields.io/github/issues/mohankumarpaluru/oracle-freetier-instance-creation?color=brightgreen)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation/issues) [![GitHub forks](https://img.shields.io/github/forks/mohankumarpaluru/oracle-freetier-instance-creation?color=brightgreen)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation/network) [![GitHub license](https://img.shields.io/github/license/mohankumarpaluru/oracle-freetier-instance-creation?color=brightgreen)](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation/blob/main/LICENSE)
+
+
+<div style="text-align:center;">
+    <img src="https://github.com/mohankumarpaluru/oracle-freetier-instance-creation/raw/refs/heads/main/ai-image.jpg" alt="Project Cover" height="300">
+</div>
 
 
 This project provides Python and shell scripts to automate the creation of Oracle Free Tier ARM instances (4 OCPU, 24 GB RAM) or the Oracle Free Tier AMD instance (1 OCPU, 1 GB RAM) with minimal manual intervention. Acquiring resources in certain availability domains can be challenging due to high demand, and repeatedly attempting creation through the Oracle console is impractical. While other methods like OCI CLI and PHP are available (linked at the end), this solution aims to streamline the process by implementing it in Python.
@@ -61,15 +66,15 @@ Once the setup is complete, run the `setup_init.sh` script from the project dire
 ```bash
 ./setup_init.sh
 ```
-If you are running in a fresh `VM.Standard.E2.1.Micro` instance, you might receive a prompt *Daemons using outdated libraries*. Just click `OK`; that's due to updating the libraries through apt update and won't be asked again. 
+If you are running in a fresh `VM.Standard.E2.1.Micro` instance, you might receive a prompt *Daemons using outdated libraries*. Just click `OK`; that's due to updating the libraries through apt update and won't be asked again.
 
-If you are running in your local instead of `VM.Standard.E2.1.Micro` instance, make sure you fill the `OCI_SUBNET_ID`. 
+If you are running in your local instead of `VM.Standard.E2.1.Micro` instance, make sure you fill the `OCI_SUBNET_ID`.
 
 The script will display an error prompt if an issue arises; otherwise, it will show "Script is running successfully."
 
 View the logs of the instance creation API call in `launch_instance.log` and details about the parameters used (availability-domain, compartment-id, subnet-id, image-id) in `setup_and_info.log`.
 
-## Errors and Re-Run 
+## Errors and Re-Run
 
 If the `oci_config` file is found to be incorrect, the script generates an `ERROR_IN_CONFIG.log` file. Verify the `oci_config` for accuracy, ensuring it aligns with the [sample_oci_config](https://github.com/mohankumarpaluru/oracle-freetier-instance-creation/blob/85b3ec065a91bb66206933a12a6bd58941446118/sample_oci_config#L1C1-L6C80) without any additional lines or characters.
 
@@ -124,21 +129,21 @@ flowchart TD
 
 ## Environment Variables
 **Required Fields:**
-	
-- `OCI_CONFIG`:  Absolute path to the file with OCI API Config Detail content 
+
+- `OCI_CONFIG`:  Absolute path to the file with OCI API Config Detail content
 - `OCT_FREE_AD`: Availability Domain that's eligible for *Always-Free Tier*. If multiple, separate by commas
 
 **Optional Fields:**
-- `DISPLAY_NAME`: Name of the Instance 
-- `REQUEST_WAIT_TIME_SECS`: Wait before trying to launch an instance again.  
+- `DISPLAY_NAME`: Name of the Instance
+- `REQUEST_WAIT_TIME_SECS`: Wait before trying to launch an instance again.
 - `SSH_AUTHORIZED_KEYS_FILE`: Give the absolute path of an SSH public key for ARM instance. **The program will create a public and private key pair with the name specified if the key file doesn't exist; otherwise, it uses the one specified**.
 - `OCI_SUBNET_ID`: The `OCID` of an existing subnet that will be used when creating an ARM instance. Only use it for running script from local. DO NOT ADD THIS IF YOU ARE ALREADY RUNNING IN A MICRO INSTANCE.
     >  This can be found in `Networking` >`Virtual cloud networks` > `<VPC-Name>` > `Subnet Details`.
-- `OCI_IMAGE_ID`: *Image_id* of the desired OS and version; the script will generate the `image_list.json`. 
+- `OCI_IMAGE_ID`: *Image_id* of the desired OS and version; the script will generate the `image_list.json`.
 - `OCI_COMPUTE_SHAPE`: Free-tier compute shape of the instance to launch. Defaults to ARM, but configurable if you are running into capacity issues for the free AMD instance in your home region. Acceptable values `VM.Standard.A1.Flex` and `VM.Standard.E2.1.Micro`.
 - `SECOND_MICRO_INSTANCE`: `True` if you are utilizing the script for your second free tier Micro Instance, else `False`.
-- `OPERATING_SYSTEM`: Exact name of the operating system 
-- `OS_VERSION`: Exact version of the operating system 
+- `OPERATING_SYSTEM`: Exact name of the operating system
+- `OS_VERSION`: Exact version of the operating system
 - `ASSIGN_PUBLIC_IP`: Automatically assign an ephemeral public IP address
 - `BOOT_VOLUME_SIZE`: Size of boot volume in GB, values below 50 will be ignored and default to 50.
 - `NOTIFY_EMAIL`: Make it True if you want to get notified and provide email and password
