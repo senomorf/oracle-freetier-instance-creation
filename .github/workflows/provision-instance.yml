@@ -1,0 +1,191 @@
+name: OCI Instance Provisioning
+
+on:
+  schedule:
+    # Run every 30 minutes (adjust as needed)
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  # OCI Configuration - these should be set as repository secrets
+  OCI_CONFIG_CONTENT: ${{ secrets.OCI_CONFIG_CONTENT }}
+  OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+  
+  # Instance Configuration - override oci.env defaults
+  MODE: SINGLE_ATTEMPT
+  OCT_FREE_AD: ${{ vars.OCT_FREE_AD || 'AD-1' }}
+  DISPLAY_NAME: ${{ vars.DISPLAY_NAME || 'github-actions-instance' }}
+  OCI_COMPUTE_SHAPE: ${{ vars.OCI_COMPUTE_SHAPE || 'VM.Standard.E2.1.Micro' }}
+  OCI_IMAGE_ID: ${{ vars.OCI_IMAGE_ID }}
+  OPERATING_SYSTEM: ${{ vars.OPERATING_SYSTEM || 'Canonical Ubuntu' }}
+  OS_VERSION: ${{ vars.OS_VERSION || '22.04' }}
+  ASSIGN_PUBLIC_IP: ${{ vars.ASSIGN_PUBLIC_IP || 'false' }}
+  BOOT_VOLUME_SIZE: ${{ vars.BOOT_VOLUME_SIZE || '50' }}
+  
+  # Notification Configuration
+  NOTIFY_EMAIL: ${{ vars.NOTIFY_EMAIL || 'false' }}
+  EMAIL: ${{ secrets.EMAIL }}
+  EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+  TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+  TELEGRAM_USER_ID: ${{ secrets.TELEGRAM_USER_ID }}
+
+jobs:
+  provision-instance:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Set up OCI configuration
+      run: |
+        # Create .oci directory
+        mkdir -p ~/.oci
+        
+        # Create OCI config file from secret
+        echo "$OCI_CONFIG_CONTENT" > ~/.oci/config
+        chmod 600 ~/.oci/config
+        
+        # Create private key file from secret
+        echo "$OCI_PRIVATE_KEY" > ~/.oci/oci_api_key.pem
+        chmod 600 ~/.oci/oci_api_key.pem
+        
+        # Generate SSH key pair for the instance
+        ssh-keygen -t rsa -b 2048 -f ~/.ssh/github_actions_key -N ""
+        chmod 600 ~/.ssh/github_actions_key
+        chmod 644 ~/.ssh/github_actions_key.pub
+        
+    - name: Create oci.env for single attempt mode
+      run: |
+        cat > oci.env << EOF
+        # OCI Configuration for GitHub Actions
+        OCI_CONFIG=$HOME/.oci/config
+        OCT_FREE_AD=${OCT_FREE_AD}
+        DISPLAY_NAME=${DISPLAY_NAME}
+        OCI_COMPUTE_SHAPE=${OCI_COMPUTE_SHAPE}
+        MODE=${MODE}
+        SECOND_MICRO_INSTANCE=False
+        REQUEST_WAIT_TIME_SECS=0
+        SSH_AUTHORIZED_KEYS_FILE=$HOME/.ssh/github_actions_key.pub
+        OCI_IMAGE_ID=${OCI_IMAGE_ID}
+        OPERATING_SYSTEM=${OPERATING_SYSTEM}
+        OS_VERSION=${OS_VERSION}
+        ASSIGN_PUBLIC_IP=${ASSIGN_PUBLIC_IP}
+        BOOT_VOLUME_SIZE=${BOOT_VOLUME_SIZE}
+        
+        # Notification settings
+        NOTIFY_EMAIL=${NOTIFY_EMAIL}
+        EMAIL=${EMAIL}
+        EMAIL_PASSWORD=${EMAIL_PASSWORD}
+        DISCORD_WEBHOOK=${DISCORD_WEBHOOK}
+        TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+        TELEGRAM_USER_ID=${TELEGRAM_USER_ID}
+        EOF
+        
+    - name: Attempt instance provisioning
+      id: provision
+      run: |
+        echo "Starting OCI instance provisioning attempt..."
+        python provision_once.py
+        exit_code=$?
+        
+        case $exit_code in
+          0)
+            echo "result=success" >> $GITHUB_OUTPUT
+            echo "message=Instance created successfully" >> $GITHUB_OUTPUT
+            ;;
+          1)
+            echo "result=capacity_issue" >> $GITHUB_OUTPUT  
+            echo "message=Capacity issue - will retry on next scheduled run" >> $GITHUB_OUTPUT
+            ;;
+          2)
+            echo "result=fatal_error" >> $GITHUB_OUTPUT
+            echo "message=Fatal error - check configuration" >> $GITHUB_OUTPUT
+            ;;
+          *)
+            echo "result=unknown_error" >> $GITHUB_OUTPUT
+            echo "message=Unknown error occurred" >> $GITHUB_OUTPUT
+            ;;
+        esac
+        
+        exit $exit_code
+      continue-on-error: true
+      
+    - name: Upload logs
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: provisioning-logs
+        path: |
+          provision_once.log
+          setup_and_info.log
+          INSTANCE_CREATED
+          ERROR_IN_CONFIG.log
+        retention-days: 7
+        
+    - name: Create job summary
+      if: always()
+      run: |
+        echo "## OCI Instance Provisioning Result" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Status:** ${{ steps.provision.outputs.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Message:** ${{ steps.provision.outputs.message }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        case "${{ steps.provision.outputs.result }}" in
+          "success")
+            echo "✅ Instance provisioning successful!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The workflow will continue running on schedule to check for additional instances or configuration changes." >> $GITHUB_STEP_SUMMARY
+            ;;
+          "capacity_issue")
+            echo "⏳ Capacity temporarily unavailable" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This is a common occurrence with OCI Free Tier. The workflow will automatically retry on the next scheduled run." >> $GITHUB_STEP_SUMMARY
+            ;;
+          "fatal_error")
+            echo "❌ Configuration or permission error" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please check your repository secrets and variables configuration." >> $GITHUB_STEP_SUMMARY
+            ;;
+          *)
+            echo "❓ Unknown status" >> $GITHUB_STEP_SUMMARY
+            ;;
+        esac
+        
+    - name: Notify on success
+      if: steps.provision.outputs.result == 'success' && env.DISCORD_WEBHOOK != ''
+      run: |
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             -d '{"content":"🎉 **OCI Instance Created Successfully!**\n\n**Instance:** ${{ env.DISPLAY_NAME }}\n**Shape:** ${{ env.OCI_COMPUTE_SHAPE }}\n**Timestamp:** '$(date -u)'"}' \
+             "${{ env.DISCORD_WEBHOOK }}"
+             
+    - name: Notify on persistent failure
+      # Only notify after multiple consecutive failures to avoid spam
+      if: steps.provision.outputs.result == 'fatal_error' && env.DISCORD_WEBHOOK != ''
+      run: |
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             -d '{"content":"❌ **OCI Instance Provisioning Failed**\n\n**Error:** Fatal configuration or permission error\n**Action Required:** Check repository secrets and configuration\n**Timestamp:** '$(date -u)'"}' \
+             "${{ env.DISCORD_WEBHOOK }}"

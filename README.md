@@ -18,12 +18,16 @@ The script attempts to create an instance every 60 seconds or as per the `REQUES
 In short, this script is another way to bypass the "Out of host capacity" or "Out of capacity for shape VM.Standard.A1.Flex" error and create an instance when the resources are freed up.
 
 ## Features
+- **Dual Operation Modes**: 
+  - **Polling Mode** (default): Continuous background process with automatic retries
+  - **Single-Attempt Mode**: GitHub Actions compatible for scheduled provisioning
 - Single file needs to be run after basic setup
 - Configurable wait time, OCPU, RAM, DISPLAY_NAME
-- Gmail notification
+- Gmail notification and Discord webhook support
 - SSH keys for ARM instances can be automatically created
 - OS configuration based on Image ID or OS and version
 - Compute shape configuration
+- GitHub Actions workflow for automated cloud provisioning
 
 ## Pre-Requisites
 - **VM.Standard.E2.1.Micro Instance**: The script is designed for a Ubuntu environment, and you need an existing subnet ID for ARM instance creation. Create an always-free `VM.Standard.E2.1.Micro` instance with Ubuntu 22.04. This instance can be deleted after the ARM instance creation. (Not required if an existing OCI_SUBNET_ID is defined in oci.env file)
@@ -83,6 +87,43 @@ In case of an unhandled exception leading to script termination, an email contai
 
 ```bash
 ./setup_init.sh rerun
+```
+
+## GitHub Actions Mode (Alternative)
+
+For automated, scheduled provisioning without maintaining a running instance, use the new **GitHub Actions workflow**:
+
+### Quick Setup
+1. Fork this repository to your GitHub account
+2. Configure repository secrets and variables (see [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md))
+3. Enable GitHub Actions in your repository
+4. The workflow will automatically attempt provisioning every 30 minutes
+
+### Key Benefits
+- **No Running Costs**: No need to keep a VM.Standard.E2.1.Micro instance running
+- **Scheduled Execution**: Runs automatically every 30 minutes (configurable)
+- **Smart Retry Logic**: Automatically retries on capacity issues
+- **Status Reporting**: Clear success/failure notifications
+- **Log Retention**: Automatic log archival for troubleshooting
+
+### Usage Modes
+Set the `MODE` variable in `oci.env`:
+- `MODE=POLLING` - Traditional continuous polling (default)
+- `MODE=SINGLE_ATTEMPT` - Single attempt per execution (GitHub Actions)
+
+For detailed GitHub Actions setup instructions, see **[GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md)**.
+
+### Single-Attempt Local Testing
+Test the single-attempt mode locally:
+```bash
+# Set mode in oci.env
+echo "MODE=SINGLE_ATTEMPT" >> oci.env
+
+# Run once
+python provision_once.py
+
+# Check exit code
+echo $?  # 0=success, 1=capacity issue, 2=fatal error
 ```
 
 ## OCI Instance Creation Flow
